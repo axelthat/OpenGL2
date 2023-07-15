@@ -7,7 +7,11 @@
 #include <cmath>
 #include <array>
 #include "dependencies/stb_image/stb_image.h"
+#include "Renderer.h"
 #include "Shader.h"
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
 
 const std::string vertexShader = R"glsl(
 #version 330 core
@@ -35,10 +39,17 @@ out vec4 FragColor;
 in vec4 outColor;
 in vec2 outTexCoord;
 
-uniform sampler2D fragTexture;
+uniform sampler2D texture0;
+uniform sampler2D texture1;
 
 void main() {
-    FragColor = texture(fragTexture, outTexCoord) * outColor;
+    vec4 color0 = texture(texture0, outTexCoord);
+    vec4 color1 = texture(texture1, outTexCoord);
+
+    float alpha = color1.a; // Use the alpha of the top texture
+    vec3 color = mix(color0.rgb, color1.rgb, alpha); // Blend the colors
+
+    FragColor = vec4(color, 1.0);
 }
 
 )glsl";
@@ -81,8 +92,10 @@ int main(void)
     std::cout << "Loaded OpenGL " << glGetString(GL_VERSION) << std::endl;
 
     int nrAttributes;
-    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &nrAttributes);
+    glCall(glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &nrAttributes));
     std::cout << "Maximum nr of vertex attributes supported: " << nrAttributes << std::endl;
+
+    stbi_set_flip_vertically_on_load(true);
 
     //float positions[] {
     //    -0.5f, -0.5f, 0.0f,
@@ -106,65 +119,106 @@ int main(void)
     };
 
     unsigned int vao;
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
+    glCall(glGenVertexArrays(1, &vao));
+    glCall(glBindVertexArray(vao));
 
     unsigned int vbo;
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, positions.size() * sizeof(float), positions.data(), GL_STATIC_DRAW);
+    glCall(glGenBuffers(1, &vbo));
+    glCall(glBindBuffer(GL_ARRAY_BUFFER, vbo));
+    glCall(glBufferData(GL_ARRAY_BUFFER, positions.size() * sizeof(float), positions.data(), GL_STATIC_DRAW));
 
     unsigned int ibo;
-    glGenBuffers(1, &ibo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+    glCall(glGenBuffers(1, &ibo));
+    glCall(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo));
+    glCall(glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW));
 
-    unsigned int texture;
-    glGenTextures(1, &texture);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texture);
+    glCall(glEnableVertexAttribArray(0));
+    glCall(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0));
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glCall(glEnableVertexAttribArray(1));
+    glCall(glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float))));
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
+    glCall(glEnableVertexAttribArray(2));
+    glCall(glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float))));
 
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    std::array<std::string, 2> textures = { "container.jpg", "awesomeface.png" };
+    std::array<unsigned int, textures.size()> textureVBOs = {};
+    for (size_t i = 0; i < textures.size(); i++) {
+        unsigned int textureVBO;
+        glCall(glGenTextures(1, &textureVBO));
+        glCall(glActiveTexture(GL_TEXTURE0 + i));
+        glCall(glBindTexture(GL_TEXTURE_2D, textureVBO));
 
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+        textureVBOs[i] = textureVBO;
 
-    int width, height, nrChannels;
-    unsigned char* data = stbi_load("res/textures/container.jpg", &width, &height, &nrChannels, 0);
+        glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
+        glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
+        glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+        glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
 
-    if (data) {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        std::string texture = textures[i];
+        std::string texturePath = std::string("res/textures/") + texture;
+        std::cout << texturePath << std::endl;
+
+        int width, height, nrChannels;
+        unsigned char* bytes = stbi_load(texturePath.c_str(), &width, &height, &nrChannels, 0);
+
+        unsigned int channel = texture.ends_with("png") ? GL_RGBA : GL_RGB;
+
+        if (bytes) {
+            glCall(glTexImage2D(GL_TEXTURE_2D, 0, channel, width, height, 0, channel, GL_UNSIGNED_BYTE, bytes));
+        }
+        else {
+            std::cout << "Failed to load texture: " << texturePath << std::endl;
+        }
+
+        stbi_image_free(bytes);
     }
-    else {
-        std::cout << "Failed to load texture" << std::endl;
-    }
-
-    stbi_image_free(data);
 
     Shader shader(vertexShader, fragmentShader);
+    shader.Bind();
+    for (size_t i = 0; i < textureVBOs.size(); i++) {
+        auto textureVBO = textureVBOs[i];
+        std::string textureLocationName = "texture" + std::to_string(i);
+        shader.SetValue(textureLocationName, static_cast<unsigned int>(i));
+    }
+
+    glm::mat4 trans = glm::mat4(1.0f);
+    trans = glm::rotate(trans, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    trans = glm::scale(trans, glm::vec3(0.5f, 0.5f, 0.5f));
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
         /* Render here */
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glCall(glClearColor(0.2f, 0.3f, 0.3f, 1.0f));
+        glCall(glClear(GL_COLOR_BUFFER_BIT));
 
       /*  float timeValue = glfwGetTime();
         float greenValue = (sin(timeValue) / 2.0f) + 0.5f;
         glUniform4f(vertexColorLocation, 0.0f, greenValue, 0.0f, 1.0f);*/
-        shader.Use();
+     /*   for (size_t i = 0; i < textureVBOs.size(); i++) {
+            auto textureVBO = textureVBOs[i];
+            glActiveTexture(GL_TEXTURE0 + i);
+            glBindTexture(GL_TEXTURE_2D, textureVBO);
+        }*/
+        //shader.Use();
+   /*     for (size_t i = 0; i < textureVBOs.size(); i++) {
+            auto textureVBO = textureVBOs[i];
+            std::string textureLocationName = "texture" + std::to_string(i);
+            shader.SetValue(textureLocationName, static_cast<unsigned int>(i));
 
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+            glCall(glActiveTexture(GL_TEXTURE0 + i)); 
+            glCall(glBindTexture(GL_TEXTURE_2D, textureVBO));
+        }*/
+
+        //for (size_t i = 0; i < textureVBOs.size(); i++) {
+        //    auto textureVBO = textureVBOs[i];
+        //    glCall(glActiveTexture(GL_TEXTURE0 + i));
+        //    glCall(glBindTexture(GL_TEXTURE_2D, textureVBO));
+        //}
+        //shader.Use();
+        glCall(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
 
         /* Swap front and back buffers */
         glfwSwapBuffers(window);
@@ -172,6 +226,14 @@ int main(void)
         /* Poll for and process events */
         glfwPollEvents();
     }
+
+    glCall(glDeleteVertexArrays(1, &vao));
+    glCall(glDeleteBuffers(1, &vbo));
+    glCall(glDeleteBuffers(1, &ibo));
+    for (auto& textureVBO : textureVBOs) {
+        glCall(glDeleteTextures(1, &textureVBO));
+    }
+    shader.UnBind();
 
     glfwTerminate();
     return 0;

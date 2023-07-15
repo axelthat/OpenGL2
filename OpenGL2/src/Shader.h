@@ -9,13 +9,14 @@ private:
 	const std::string& m_FragmentShader;
 public:
 	Shader(const std::string& vertexShader, const std::string& fragmentShader);
-	~Shader();
 
 private:
 	unsigned int CreateShader(unsigned int type, const std::string& shaderSource);
+	int GetLocation(const std::string& name) const;
 
 public:
-	void Use() const;
+	void Bind() const;
+	void UnBind() const;
 	void SetValue(const std::string& name, bool value) const;
 	void SetValue(const std::string& name, unsigned int value) const;
 	void SetValue(const std::string& name, float value) const;

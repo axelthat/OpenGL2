@@ -1,6 +1,7 @@
 #include "Shader.h"
 #include <glad/glad.h>
 #include <iostream>
+#include "Renderer.h"
 
 Shader::Shader(const std::string& vertexShader, const std::string& fragmentShader) :
 	m_VertexShader(vertexShader),
@@ -9,39 +10,39 @@ Shader::Shader(const std::string& vertexShader, const std::string& fragmentShade
     unsigned int vs = CreateShader(GL_VERTEX_SHADER, vertexShader);
     unsigned int fs = CreateShader(GL_FRAGMENT_SHADER, fragmentShader);
 
-    m_Id = glCreateProgram();
-    glAttachShader(m_Id, vs);
-    glAttachShader(m_Id, fs);
-    glLinkProgram(m_Id);
-    glValidateProgram(m_Id);
-    glDeleteShader(vs);
-    glDeleteShader(fs);
+    glCall(m_Id = glCreateProgram());
+    glCall(glAttachShader(m_Id, vs));
+    glCall(glAttachShader(m_Id, fs));
+    glCall(glLinkProgram(m_Id));
+    glCall(glValidateProgram(m_Id));
+    glCall(glDeleteShader(vs));
+    glCall(glDeleteShader(fs));
 }
 
-Shader::~Shader() {
-    glDeleteProgram(m_Id);
+void Shader::Bind() const {
+    glCall(glUseProgram(m_Id));
 }
 
-void Shader::Use() const {
-    glUseProgram(m_Id);
+void Shader::UnBind() const {
+    glCall(glDeleteProgram(m_Id));
 }
 
 unsigned int Shader::CreateShader(unsigned int type, const std::string& shaderSource) {
-    unsigned int id = glCreateShader(type);
+    glCall(unsigned int id = glCreateShader(type));
     const char* src = shaderSource.c_str();
-    glShaderSource(id, 1, &src, nullptr);
-    glCompileShader(id);
+    glCall(glShaderSource(id, 1, &src, nullptr));
+    glCall(glCompileShader(id));
 
     int result;
-    glGetShaderiv(id, GL_COMPILE_STATUS, &result);
+    glCall(glGetShaderiv(id, GL_COMPILE_STATUS, &result));
     if (result == GL_FALSE) {
         int length;
-        glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length);
+        glCall(glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length));
         char* message = new char[length];
-        glGetShaderInfoLog(id, length, &length, message);
+        glCall(glGetShaderInfoLog(id, length, &length, message));
         std::cout << "Failed to compile " << (type == GL_VERTEX_SHADER ? "vertex" : "fragment") << " shader!" << std::endl;
         std::cout << message << std::endl;
-        glDeleteShader(id);
+        glCall(glDeleteShader(id));
 
         delete[] message;
         message = nullptr;
@@ -52,14 +53,23 @@ unsigned int Shader::CreateShader(unsigned int type, const std::string& shaderSo
     return id;
 }
 
+int Shader::GetLocation(const std::string& name) const {
+    glCall(int location = glGetUniformLocation(m_Id, name.c_str()));
+    if (location < 0) {
+        std::cout << "Failed to get uniform location: " << name << std::endl;
+    }
+
+    return location;
+}
+
 void Shader::SetValue(const std::string& name, bool value) const {
-	glUniform1i(glGetUniformLocation(m_Id, name.c_str()), static_cast<int>(value));
+	glCall(glUniform1i(GetLocation(name), static_cast<int>(value)));
 }
 
 void Shader::SetValue(const std::string& name, unsigned int value) const {
-	glUniform1i(glGetUniformLocation(m_Id, name.c_str()), value);
+	glCall(glUniform1i(GetLocation(name), value));
 }
 
 void Shader::SetValue(const std::string& name, float value) const {
-	glUniform1f(glGetUniformLocation(m_Id, name.c_str()), value);
+	glCall(glUniform1f(GetLocation(name), value));
 }
