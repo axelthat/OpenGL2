@@ -2,6 +2,7 @@
 #include <glad/glad.h>
 #include <iostream>
 #include "Renderer.h"
+#include "glm/gtc/type_ptr.hpp"
 
 Shader::Shader(const std::string& vertexShader, const std::string& fragmentShader) :
 	m_VertexShader(vertexShader),
@@ -72,4 +73,8 @@ void Shader::SetValue(const std::string& name, unsigned int value) const {
 
 void Shader::SetValue(const std::string& name, float value) const {
 	glCall(glUniform1f(GetLocation(name), value));
+}
+
+void Shader::SetValue(const std::string& name, glm::mat4 value) const {
+    glCall(glUniformMatrix4fv(GetLocation(name), 1, GL_FALSE, glm::value_ptr(value)));
 }

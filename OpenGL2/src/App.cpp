@@ -17,15 +17,16 @@ const std::string vertexShader = R"glsl(
 #version 330 core
 
 layout(location = 0) in vec3 inPosition;
-layout(location = 1) in vec3 inColor;
-layout(location = 2) in vec2 inTexCoord;
+layout(location = 1) in vec2 inTexCoord;
 
-out vec4 outColor;
 out vec2 outTexCoord;
 
+uniform mat4 model;
+uniform mat4 view;
+uniform mat4 projection;
+
 void main() {
-    gl_Position = vec4(inPosition, 1.0);
-    outColor = vec4(inColor, 1.0);
+    gl_Position = projection * view * model * vec4(inPosition, 1.0);
     outTexCoord = inTexCoord;
 }
 
@@ -36,7 +37,6 @@ const std::string fragmentShader = R"glsl(
 
 out vec4 FragColor;
 
-in vec4 outColor;
 in vec2 outTexCoord;
 
 uniform sampler2D texture0;
@@ -53,6 +53,9 @@ void main() {
 }
 
 )glsl";
+
+const unsigned int SRC_WIDTH = 800;
+const unsigned int SRC_HEIGHT = 600;
 
 int main(void)
 {
@@ -73,7 +76,7 @@ int main(void)
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(640, 480, "Hello World", NULL, NULL);
+    window = glfwCreateWindow(SRC_WIDTH, SRC_HEIGHT, "Hello World", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -106,11 +109,11 @@ int main(void)
     //    -0.5f,  0.5f, 0.0f,
     //    -0.5f, -0.5f, 0.0f
     //};
-    std::array<float, 32> positions = {
-         0.5f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f, // top right
-         0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f, // bottom right
-        -0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f, // bottom left
-        -0.5f,  0.5f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 1.0f  // top left 
+    std::array<float, 20> positions = {
+         0.5f,  0.5f, 0.0f,   1.0f, 1.0f, // top right
+         0.5f, -0.5f, 0.0f,   1.0f, 0.0f, // bottom right
+        -0.5f, -0.5f, 0.0f,   0.0f, 0.0f, // bottom left
+        -0.5f,  0.5f, 0.0f,   0.0f, 1.0f  // top left 
     };
 
     std::array<unsigned int, 6> indices = {
@@ -133,13 +136,10 @@ int main(void)
     glCall(glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW));
 
     glCall(glEnableVertexAttribArray(0));
-    glCall(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0));
+    glCall(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void *)0));
 
     glCall(glEnableVertexAttribArray(1));
-    glCall(glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float))));
-
-    glCall(glEnableVertexAttribArray(2));
-    glCall(glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float))));
+    glCall(glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float))));
 
     std::array<std::string, 2> textures = { "container.jpg", "awesomeface.png" };
     std::array<unsigned int, textures.size()> textureVBOs = {};
@@ -183,9 +183,18 @@ int main(void)
         shader.SetValue(textureLocationName, static_cast<unsigned int>(i));
     }
 
-    glm::mat4 trans = glm::mat4(1.0f);
-    trans = glm::rotate(trans, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    trans = glm::scale(trans, glm::vec3(0.5f, 0.5f, 0.5f));
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::rotate(model, glm::radians(-55.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+
+    glm::mat4 view = glm::mat4(1.0f);
+    view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));
+
+    glm::mat4 projection = glm::mat4(1.0f);
+    projection = glm::perspective(glm::radians(45.0f), static_cast<float>(SRC_WIDTH / SRC_HEIGHT), 0.1f, 100.0f);
+
+    shader.SetValue("model", model);
+    shader.SetValue("view", view);
+    shader.SetValue("projection", projection);
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
@@ -193,6 +202,17 @@ int main(void)
         /* Render here */
         glCall(glClearColor(0.2f, 0.3f, 0.3f, 1.0f));
         glCall(glClear(GL_COLOR_BUFFER_BIT));
+        
+        glm::mat4 trans = glm::mat4(1.0f);
+        //trans = glm::rotate(trans, -static_cast<float>(glfwGetTime()), glm::vec3(0.0f, 0.0f, 1.0f));
+        //scale = static_cast<float>(glfwGetTime());
+        //if (scale > 5.0f) {
+        //    scale = 0.0f;
+        //}
+        //float scale = abs(sin(glfwGetTime())) * 2.0f;
+        //trans = glm::scale(trans, glm::vec3(scale, scale, scale));
+        //trans = glm::rotate(trans, -static_cast<float>(glfwGetTime()), glm::vec3(1.0f, 0.0f, 0.0f));
+        //shader.SetValue("transform", trans);
 
       /*  float timeValue = glfwGetTime();
         float greenValue = (sin(timeValue) / 2.0f) + 0.5f;

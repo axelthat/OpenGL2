@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "glm/glm.hpp"
 
 class Shader {
 private:
@@ -20,4 +21,5 @@ public:
 	void SetValue(const std::string& name, bool value) const;
 	void SetValue(const std::string& name, unsigned int value) const;
 	void SetValue(const std::string& name, float value) const;
+	void SetValue(const std::string& name, glm::mat4 value) const;
 };
